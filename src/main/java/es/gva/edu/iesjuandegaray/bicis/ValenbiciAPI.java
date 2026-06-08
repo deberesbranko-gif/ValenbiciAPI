@@ -9,50 +9,67 @@ import org.apache.http.util.EntityUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.IOException;
+
 public class ValenbiciAPI {
 
-    private static final String API_URL = "https://valencia.opendatasoft.com/api/explore/v2.1/catalog/datasets/valenbisi-disponibilitat-valenbisi-dsiponibilidad/records?limit=20";
+    private static final String API_URL =
+            "https://geoportal.valencia.es/server/rest/services/OPENDATA/Trafico/MapServer/228/query"
+            + "?where=1%3D1"
+            + "&outFields=*"
+            + "&returnGeometry=true"
+            + "&f=json";
 
     public static void main(String[] args) {
-        if (API_URL.isEmpty()) {
-            System.err.println("La URL de la API no está especificada.");
-            return;
-        }
-
-        System.out.println("Conectando con la API de Valenbisi...");
 
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
+
             HttpGet request = new HttpGet(API_URL);
             HttpResponse response = httpClient.execute(request);
+
             HttpEntity entity = response.getEntity();
 
             if (entity != null) {
+
                 String result = EntityUtils.toString(entity);
-                
+
                 JSONObject jsonObject = new JSONObject(result);
-                JSONArray resultsArray = jsonObject.getJSONArray("results");
+                JSONArray features = jsonObject.getJSONArray("features");
 
-                System.out.println("\n--- DATOS DE LAS ESTACIONES (VALENBISI) ---");
-                for (int i = 0; i < resultsArray.length(); i++) {
-                    JSONObject station = resultsArray.getJSONObject(i);
-                    
-                    // Extraemos los campos requeridos por la práctica
-                    String name = station.optString("name", "Desconocida");
-                    int number = station.optInt("number", 0);
-                    int availableBikes = station.optInt("available", 0);
-                    int freeSlots = station.optInt("free", 0);
-                    int totalSlots = station.optInt("total", 0);
+                System.out.println("Número de estaciones: " + features.length());
+                System.out.println();
 
-                    // Imprimimos los datos limpios por la consola de Eclipse
-                    System.out.println("Estación: " + number + " - " + name);
-                    System.out.println("  -> Bicicletas Disponibles: " + availableBikes);
-                    System.out.println("  -> Espacios Disponibles (Anclajes Libres): " + freeSlots);
-                    System.out.println("  -> Capacidad Total: " + totalSlots);
+                for (int i = 0; i < features.length(); i++) {
+                    JSONObject feature = features.getJSONObject(i);
+
+                    JSONObject attributes = feature.getJSONObject("attributes");
+                    int number = attributes.optInt("number", 0);
+                    String address = attributes.optString("address", "Desconocida");
+                    int available = attributes.optInt("available", 0);
+                    int free = attributes.optInt("free", 0);
+                    int total = attributes.optInt("total", 0);
+
+                    Geometry geo = new Geometry();
+                    JSONObject geometry = feature.optJSONObject("geometry");
+                    if (geometry != null) {
+                        geo.x = geometry.optDouble("x", 0.0);
+                        geo.y = geometry.optDouble("y", 0.0);
+                    }
+
+                    System.out.println("Estación: " + number + " - " + address);
+                    System.out.println("  -> Bicicletas Disponibles: " + available);
+                    System.out.println("  -> Anclajes Libres: " + free);
+                    System.out.println("  -> Capacidad Total: " + total);
+                    System.out.println("  -> Coordenadas: x=" + geo.x + ", y=" + geo.y);
                     System.out.println("----------------------------------------");
                 }
             }
+
+        } catch (IOException e) {
+            System.out.println("Error en la petición HTTP:");
+            e.printStackTrace();
         } catch (Exception e) {
-            System.err.println("Error al procesar los datos de la API: " + e.getMessage());
+            System.out.println("Error procesando JSON:");
             e.printStackTrace();
         }
     }
